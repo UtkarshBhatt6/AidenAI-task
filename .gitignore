@@ -15,8 +15,8 @@ build/
 .npm
 
 # SQLite & Data
-*.db
-*.sqlite3
+*.db*
+*.sqlite*
 *.log
 
 # Environment & IDE
