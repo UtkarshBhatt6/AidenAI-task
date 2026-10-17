@@ -130,40 +130,40 @@ The model utilizes domain-specific features grounded in healthcare operations:
 7. **Department encoding:** Cardiology, Dermatology, General Medicine, Pediatrics, etc.
 
 ### 3. Probability Calibration & Cost-Sensitive Decision Theory
-In healthcare operations, raw classification scores are insufficient; clinic managers require **well-calibrated posterior probabilities ($P \in [0.0, 1.0]$)** to accurately quantify expected financial revenue at risk ($\sum P_i \times \$120$).
+In healthcare operations, raw classification scores are insufficient; clinic managers require **well-calibrated posterior probabilities ($P \in [0.0, 1.0]$)** to accurately quantify expected financial revenue at risk: $\mathbb{E}[\text{Loss}] = \sum P_i \times 120\text{ USD}$.
 - Using log-loss training and probability calibration, the model achieves an authentic **Brier score of 0.1033**, indicating high probability reliability.
 
 #### Cost-Sensitive Bayesian Threshold Derivation:
 The default binary classification threshold of $\tau = 0.50$ assumes symmetric misclassification penalties ($C_{\text{FP}} = C_{\text{FN}}$). In outpatient clinics, error costs are highly asymmetric:
-- **Cost of a False Negative ($C_{\text{FN}} \approx \$120$):** Model predicts attendance, clinic takes no action, patient no-shows. The examination room sits empty, specialist physician time is wasted, and appointment billing revenue is permanently lost.
-- **Cost of a False Positive ($C_{\text{FP}} \approx \$40$):** Model flags high risk, clinic initiates manual coordinator telephone outreach and waitlist standby preparation, but patient attends as planned.
+- **Cost of a False Negative ($C_{\text{FN}} \approx 120\text{ USD}$):** Model predicts attendance, clinic takes no action, patient no-shows. The examination room sits empty, specialist physician time is wasted, and appointment billing revenue is permanently lost.
+- **Cost of a False Positive ($C_{\text{FP}} \approx 40\text{ USD}$):** Model flags high risk, clinic initiates manual coordinator telephone outreach and waitlist standby preparation, but patient attends as planned.
 
 Under **Bayesian Risk Minimization**, the optimal decision threshold $\tau^*$ that minimizes expected clinical operational loss is:
-$$\tau^* = \frac{C_{\text{FP}}}{C_{\text{FP}} + C_{\text{FN}}} = \frac{\$40}{\$40 + \$120} = \mathbf{0.25}$$
+$$\tau^* = \frac{C_{\text{FP}}}{C_{\text{FP}} + C_{\text{FN}}} = \frac{40}{40 + 120} = \mathbf{0.25}$$
 
 #### Empirical Multi-Threshold Evaluation on Holdout Test Set (3,000 Samples):
 Evaluating candidate thresholds on the 3,000 holdout test samples (431 actual no-shows, 2,569 attendances) reveals how the precision-recall-cost dynamic operates in practice:
 
-| Threshold ($\tau$) | TP | FP | TN | FN | Precision | Recall | $F_1$-Score | Expected Loss ($120 \cdot \text{FN} + 40 \cdot \text{FP}$) |
+| Threshold ($\tau$) | TP | FP | TN | FN | Precision | Recall | $F_1$-Score | Expected Loss ($120 \cdot \text{FN} + 40 \cdot \text{FP}$ in USD) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 0.50 (Default) | 81 | 53 | 2,516 | 350 | **60.4%** | 18.8% | 0.287 | \$44,120 (High False Negatives) |
-| 0.40 | 115 | 109 | 2,460 | 316 | 51.3% | 26.7% | 0.351 | \$42,280 |
-| 0.35 | 133 | 144 | 2,425 | 298 | 48.0% | 30.9% | 0.376 | \$41,520 |
-| 0.30 | 163 | 197 | 2,372 | 268 | 45.3% | 37.8% | 0.412 | \$40,040 |
-| **0.25 (Bayes Optimal)** | 194 | 281 | 2,288 | 237 | 40.8% | **45.0%** | **0.428** | **\$39,680** |
-| **0.20 (Empirical Min)** | 230 | 375 | 2,194 | 201 | 38.0% | **53.4%** | **0.444** | **\$39,120 (Cost Minimum)** |
-| 0.15 | 283 | 554 | 2,015 | 148 | 33.8% | 65.7% | 0.446 | \$39,920 (High False Positives) |
+| 0.50 (Default) | 81 | 53 | 2,516 | 350 | **60.4%** | 18.8% | 0.287 | 44,120 USD (High False Negatives) |
+| 0.40 | 115 | 109 | 2,460 | 316 | 51.3% | 26.7% | 0.351 | 42,280 USD |
+| 0.35 | 133 | 144 | 2,425 | 298 | 48.0% | 30.9% | 0.376 | 41,520 USD |
+| 0.30 | 163 | 197 | 2,372 | 268 | 45.3% | 37.8% | 0.412 | 40,040 USD |
+| **0.25 (Bayes Optimal)** | 194 | 281 | 2,288 | 237 | 40.8% | **45.0%** | **0.428** | **39,680 USD** |
+| **0.20 (Empirical Min)** | 230 | 375 | 2,194 | 201 | 38.0% | **53.4%** | **0.444** | **39,120 USD (Cost Minimum)** |
+| 0.15 | 283 | 554 | 2,015 | 148 | 33.8% | 65.7% | 0.446 | 39,920 USD (High False Positives) |
 
 *Analysis & Insights:*
-1. **The Cost Valley ($0.20 - 0.25$):** Under the assumed \$120 FN and \$40 FP costs, both $\tau = 0.20$ (\$39,120) and $\tau = 0.25$ (\$39,680) form an optimal cost valley, saving **~\$4,500 – \$5,000 per 3,000 appointments** compared to the naive 0.50 baseline.
+1. **The Cost Valley ($0.20 - 0.25$):** Under the assumed 120 USD FN and 40 USD FP costs, both $\tau = 0.20$ (39,120 USD) and $\tau = 0.25$ (39,680 USD) form an optimal cost valley, saving **~4,500 – 5,000 USD per 3,000 appointments** compared to the naive 0.50 baseline.
 2. **Theoretical vs. Empirical Agreement:** The theoretical Bayesian threshold ($\tau^* = 0.25$) falls directly into this empirical optimum. Slight differences ($\tau=0.20$ yielding a marginally lower cost on this test split) reflect finite sample variation and discrete threshold binning.
 3. **Recall Lift:** Lowering the cutoff into the $0.20 - 0.25$ window more than doubles Recall (from **18.8% to 45.0% - 53.4%**), ensuring clinic staff proactively identify the vast majority of impending no-shows.
 
 ### 4. Tri-Level Operational Triage Policy
-In a clinical setting, treating every flagged patient with the same flat \$40 manual intervention is inefficient. MediTrack translates probabilities into **three operational tiers** with calibrated, tier-appropriate intervention costs:
-- **Low Risk ($< 25\%$):** Below the Bayes intervention cutoff $\rightarrow$ Standard automated SMS reminder 24h prior ($C_{\text{FP}} \approx \$0.05$).
-- **Medium Risk ($25\% - 50\%$):** Exceeds the Bayes cutoff $\rightarrow$ Automated two-way WhatsApp interactive confirmation prompt ($C_{\text{FP}} \approx \$0.10$).
-- **High Risk ($> 50\%$):** Severe risk $\rightarrow$ Manual coordinator telephone call, transportation assistance verification, and waitlist standby patient activation ($C_{\text{FP}} \approx \$20 - \$40$).
+In a clinical setting, treating every flagged patient with the same flat 40 USD manual intervention is inefficient. MediTrack translates probabilities into **three operational tiers** with calibrated, tier-appropriate intervention costs:
+- **Low Risk ($< 25\%$):** Below the Bayes intervention cutoff $\rightarrow$ Standard automated SMS reminder 24h prior ($C_{\text{FP}} \approx 0.05\text{ USD}$).
+- **Medium Risk ($25\% - 50\%$):** Exceeds the Bayes cutoff $\rightarrow$ Automated two-way WhatsApp interactive confirmation prompt ($C_{\text{FP}} \approx 0.10\text{ USD}$).
+- **High Risk ($> 50\%$):** Severe risk $\rightarrow$ Manual coordinator telephone call, transportation assistance verification, and waitlist standby patient activation ($C_{\text{FP}} \approx 20 - 40\text{ USD}$).
 
 ---
 
