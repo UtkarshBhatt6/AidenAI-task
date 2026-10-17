@@ -65,7 +65,9 @@ def train_and_evaluate_model(n_samples: int = 15000) -> dict:
     
     # Predict on test set
     y_pred_proba = model.predict_proba(X_test)[:, 1]
-    y_pred = (y_pred_proba >= 0.35).astype(int) # Clinical threshold tuned for proactive intervention
+    # Evaluate candidate thresholds: Bayes optimal threshold is tau* = C_FP / (C_FP + C_FN) = 40 / (40 + 120) = 0.25
+    OPTIMAL_THRESHOLD = 0.25
+    y_pred = (y_pred_proba >= OPTIMAL_THRESHOLD).astype(int)
     
     auc = float(roc_auc_score(y_test, y_pred_proba))
     acc = float(accuracy_score(y_test, y_pred))
@@ -76,10 +78,23 @@ def train_and_evaluate_model(n_samples: int = 15000) -> dict:
     
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
     
-    # Feature importances from the base gradient boosting model
     # Feature importances from the gradient boosting model
     importances = dict(zip(ALL_FEATURE_COLS, [float(x) for x in model.feature_importances_]))
     sorted_importances = dict(sorted(importances.items(), key=lambda item: item[1], reverse=True))
+    
+    # Multi-threshold comparison curve on holdout set
+    threshold_curve = []
+    for t in [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50]:
+        t_preds = (y_pred_proba >= t).astype(int)
+        t_fn = int(np.sum((y_test == 1) & (t_preds == 0)))
+        t_fp = int(np.sum((y_test == 0) & (t_preds == 1)))
+        threshold_curve.append({
+            "threshold": t,
+            "precision": round(float(precision_score(y_test, t_preds, zero_division=0)), 3),
+            "recall": round(float(recall_score(y_test, t_preds, zero_division=0)), 3),
+            "f1": round(float(f1_score(y_test, t_preds, zero_division=0)), 3),
+            "expected_cost": t_fn * 120 + t_fp * 40
+        })
     
     metrics = {
         "model_type": "GradientBoostingClassifier",
@@ -91,14 +106,15 @@ def train_and_evaluate_model(n_samples: int = 15000) -> dict:
         "recall": round(rec, 4),
         "f1_score": round(f1, 4),
         "brier_score": round(brier, 4),
-        "decision_threshold": 0.35,
+        "decision_threshold": OPTIMAL_THRESHOLD,
         "confusion_matrix": {
             "true_negatives": int(tn),
             "false_positives": int(fp),
             "false_negatives": int(fn),
             "true_positives": int(tp)
         },
-        "feature_importances": sorted_importances
+        "feature_importances": sorted_importances,
+        "threshold_curve": threshold_curve
     }
     
     # Save artifacts

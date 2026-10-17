@@ -3,17 +3,17 @@
   "train_samples": 12000,
   "test_samples": 3000,
   "roc_auc": 0.7878,
-  "accuracy": 0.8527,
-  "precision": 0.4801,
-  "recall": 0.3086,
-  "f1_score": 0.3757,
+  "accuracy": 0.8273,
+  "precision": 0.4084,
+  "recall": 0.4501,
+  "f1_score": 0.4283,
   "brier_score": 0.1033,
-  "decision_threshold": 0.35,
+  "decision_threshold": 0.25,
   "confusion_matrix": {
-    "true_negatives": 2425,
-    "false_positives": 144,
-    "false_negatives": 298,
-    "true_positives": 133
+    "true_negatives": 2288,
+    "false_positives": 281,
+    "false_negatives": 237,
+    "true_positives": 194
   },
   "feature_importances": {
     "prior_no_show_ratio": 0.4159782569845725,
@@ -33,5 +33,56 @@
     "dept_general_medicine": 0.006891884192790079,
     "dept_pediatrics": 0.005388263484565146,
     "is_first_time": 0.0028926634213021704
-  }
+  },
+  "threshold_curve": [
+    {
+      "threshold": 0.15,
+      "precision": 0.338,
+      "recall": 0.657,
+      "f1": 0.446,
+      "expected_cost": 39920
+    },
+    {
+      "threshold": 0.2,
+      "precision": 0.38,
+      "recall": 0.534,
+      "f1": 0.444,
+      "expected_cost": 39120
+    },
+    {
+      "threshold": 0.25,
+      "precision": 0.408,
+      "recall": 0.45,
+      "f1": 0.428,
+      "expected_cost": 39680
+    },
+    {
+      "threshold": 0.3,
+      "precision": 0.453,
+      "recall": 0.378,
+      "f1": 0.412,
+      "expected_cost": 40040
+    },
+    {
+      "threshold": 0.35,
+      "precision": 0.48,
+      "recall": 0.309,
+      "f1": 0.376,
+      "expected_cost": 41520
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.513,
+      "recall": 0.267,
+      "f1": 0.351,
+      "expected_cost": 42280
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.604,
+      "recall": 0.188,
+      "f1": 0.287,
+      "expected_cost": 44120
+    }
+  ]
 }
