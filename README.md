@@ -109,13 +109,15 @@ Outpatient clinic chains like **MediTrack** face an acute operational bottleneck
 ## Machine Learning Pipeline & Decisions
 
 ### 1. Algorithm Selection: Why Calibrated Gradient Boosting?
-We evaluated three approaches for clinical no-show prediction:
+We empirically trained and benchmarked three candidate architectures on the exact same 15,000-record dataset (80/20 stratified split; executable via `PYTHONPATH=backend python3 backend/app/ml/benchmark.py`):
 
-| Model Architecture | ROC-AUC | Interpretability | Latency (Inference) | Deployment Complexity | Rationale |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **Calibrated Gradient Boosting (Selected)** | **0.7878** | **High** (Feature Importances) | **< 1.5 ms** | **Low (Single Joblib file)** | **Optimal balance of non-linear interaction modeling, calibration, and zero-dependency inference.** |
-| Deep Neural Network (MLP) | 0.7710 | Low (Black box) | ~15 ms | High (PyTorch/ONNX runtime) | Overkill for tabular clinical features; prone to over-fitting on small branches. |
-| Logistic Regression | 0.7120 | Very High (Coefficients) | < 0.5 ms | Low | Fails to capture non-linear interactions (e.g., young adults with long lead times have exponential no-show risk). |
+| Model Architecture | Holdout ROC-AUC | Brier Score (Calibration) | Single-Sample Latency | Training Time | Interpretability | Rationale |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Calibrated Gradient Boosting (Selected)** | **0.7878** | **0.1033** | **0.81 ms** | **1.57s** | **High** (MDI Feature Importances) | **Best discrimination capacity, captures non-linear risk interactions (e.g. young age $\times$ long lead delay), native tree interpretability, and lightweight Joblib artifact.** |
+| **Logistic Regression** | 0.7861 | 0.1023 | 0.35 ms | 0.08s | Very High (Linear Odds Ratios) | Strong baseline and fast, but cannot capture higher-order feature interactions without manual polynomial cross-product engineering. |
+| **Deep Neural Net (MLP)** | 0.7312 | 0.1132 | 0.36 ms | 6.60s | Low (Black-Box Weights) | Suffers from stochastic optimizer convergence issues on tabular feature sets; lower discrimination and unnecessary runtime complexity. |
+
+*Artifact location:* The empirical benchmarking results are persisted in [`backend/app/ml/artifacts/benchmark_results.json`](file:///Users/fbin-blr-0025/finbox-work/MediTrack/backend/app/ml/artifacts/benchmark_results.json).
 
 ### 2. Feature Engineering & Clinical Drivers
 The model utilizes domain-specific features grounded in healthcare operations:

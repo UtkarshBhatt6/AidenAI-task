@@ -1,0 +1,29 @@
+[
+  {
+    "model_architecture": "Calibrated Gradient Boosting",
+    "roc_auc": 0.7878,
+    "brier_score": 0.1033,
+    "avg_inference_latency_ms": 0.814,
+    "fit_time_sec": 1.57,
+    "interpretability": "High (Mean Decrease in Impurity / Feature Importances)",
+    "deployment_complexity": "Low (Standard Scikit-Learn / Joblib)"
+  },
+  {
+    "model_architecture": "Deep Neural Net (MLP)",
+    "roc_auc": 0.7312,
+    "brier_score": 0.1132,
+    "avg_inference_latency_ms": 0.363,
+    "fit_time_sec": 6.6,
+    "interpretability": "Low (Black-Box Weights)",
+    "deployment_complexity": "Medium (Iterative backpropagation, scaling sensitivity)"
+  },
+  {
+    "model_architecture": "Logistic Regression",
+    "roc_auc": 0.7861,
+    "brier_score": 0.1023,
+    "avg_inference_latency_ms": 0.355,
+    "fit_time_sec": 0.08,
+    "interpretability": "Very High (Linear Odds Coefficients)",
+    "deployment_complexity": "Very Low (Convex Optimization)"
+  }
+]
