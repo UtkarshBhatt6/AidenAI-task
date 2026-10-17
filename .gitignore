@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+build/
+.npm
+
+# SQLite & Data
+*.db
+*.sqlite3
+*.log
+
+# Environment & IDE
+.env
+.DS_Store
+.idea/
+.vscode/

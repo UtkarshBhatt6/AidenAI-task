@@ -1,0 +1,37 @@
+{
+  "model_type": "GradientBoostingClassifier",
+  "train_samples": 12000,
+  "test_samples": 3000,
+  "roc_auc": 0.7878,
+  "accuracy": 0.8527,
+  "precision": 0.4801,
+  "recall": 0.3086,
+  "f1_score": 0.3757,
+  "brier_score": 0.1033,
+  "decision_threshold": 0.35,
+  "confusion_matrix": {
+    "true_negatives": 2425,
+    "false_positives": 144,
+    "false_negatives": 298,
+    "true_positives": 133
+  },
+  "feature_importances": {
+    "prior_no_show_ratio": 0.4159782569845725,
+    "lead_days": 0.1780613570054671,
+    "age": 0.1112401892179356,
+    "sms_reminder": 0.10692044523160969,
+    "hour": 0.03620202742323398,
+    "day_of_week": 0.03279064182926015,
+    "chronic_condition": 0.021060595184802373,
+    "prior_appointments": 0.01910538250540247,
+    "prior_no_shows": 0.01567835419274964,
+    "dept_dermatology": 0.01356933028581526,
+    "dept_orthopedics": 0.01017407144639119,
+    "dept_cardiology": 0.008811184666832018,
+    "dept_endocrinology": 0.007946409176661843,
+    "dept_neurology": 0.007288943750608812,
+    "dept_general_medicine": 0.006891884192790079,
+    "dept_pediatrics": 0.005388263484565146,
+    "is_first_time": 0.0028926634213021704
+  }
+}
