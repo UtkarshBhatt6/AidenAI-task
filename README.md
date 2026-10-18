@@ -4,7 +4,6 @@
 [![React](https://img.shields.io/badge/Frontend-React%2018%20+%20Vite-61DAFB.svg?logo=react&logoColor=black)](https://vitejs.dev)
 [![Redis](https://img.shields.io/badge/Cache-Redis-DC382D.svg?logo=redis&logoColor=white)](https://redis.io)
 [![Tests](https://img.shields.io/badge/Tests-22%20Passed%20(100%25)-success.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)]()
 
 > **Submission for AidenAI Build Round — AI Engineer**  
 > **Candidate:** Utkarsh  
@@ -195,8 +194,3 @@ backend/tests/test_redis_cache.py       6 passed
 In compliance with AidenAI evaluation standards:
 - **Candidate Ownership (100%):** Core system architecture, database modeling & SQLite WAL concurrency, ML selection & calibration, Bayesian threshold derivation ($\tau^{\ast}=0.25$), Redis caching layer with single-flight coalescing & fallback, RBAC policy design, and test suite definitions.
 - **AI Acceleration:** Used strictly for generating synthetic training distribution boilerplate in `dataset.py` and repetitive React JSX/CSS layout scaffolding.
-
----
-
-## License
-MIT License. Created for the AidenAI Build Round Evaluation.
