@@ -20,7 +20,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('appointments'); // appointments, report, model, admin
   const [selectedClinic, setSelectedClinic] = useState('branch-central');
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [activeRole, setActiveRole] = useState('CLINIC_STAFF');
+  const [activeRole, setActiveRole] = useState(() => getActiveUser().role);
+
+  const handleRoleChange = (newRole) => {
+    const userName = newRole === 'CLINIC_MANAGER'
+      ? 'Dr. Alex Rivera (Clinic Director)'
+      : 'Nurse Sarah Jenkins';
+    setActiveUser({ role: newRole, name: userName });
+    setActiveRole(newRole);
+    loadData();
+  };
   
   // Data state
   const [appointments, setAppointments] = useState([]);
@@ -71,7 +80,7 @@ export default function App() {
         onNewAppointmentClick={() => setIsModalOpen(true)}
         onDataRefresh={loadData}
         activeRole={activeRole}
-        setActiveRole={setActiveRole}
+        onRoleChange={handleRoleChange}
       />
 
       {/* Daily KPI Metric Cards */}
@@ -163,11 +172,7 @@ export default function App() {
         {activeTab === 'admin' && (
           <ManagerAdminView
             activeRole={activeRole}
-            setActiveRole={setActiveRole}
-            onRoleSwitch={(newRole) => {
-              setActiveRole(newRole);
-              loadData();
-            }}
+            onRoleSwitch={handleRoleChange}
           />
         )}
       </main>

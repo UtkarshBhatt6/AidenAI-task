@@ -3,9 +3,14 @@
  * Automatically attaches RBAC headers and captures caching telemetry.
  */
 
+// Initialize active user with localStorage persistence if available
+const savedRole = typeof window !== 'undefined' ? localStorage.getItem('meditrack_role') : null;
+const initialRole = savedRole === 'CLINIC_MANAGER' ? 'CLINIC_MANAGER' : 'CLINIC_STAFF';
+const initialName = initialRole === 'CLINIC_MANAGER' ? 'Dr. Alex Rivera (Clinic Director)' : 'Nurse Sarah Jenkins';
+
 let activeUser = {
-  name: "Nurse Sarah Jenkins",
-  role: "CLINIC_STAFF",
+  name: initialName,
+  role: initialRole,
   clinicId: "branch-central"
 };
 
@@ -13,6 +18,11 @@ let cacheTelemetryListeners = [];
 
 export function setActiveUser(user) {
   activeUser = { ...activeUser, ...user };
+  if (user.role && typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('meditrack_role', user.role);
+    } catch (e) {}
+  }
 }
 
 export function getActiveUser() {

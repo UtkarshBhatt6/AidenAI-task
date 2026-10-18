@@ -20,7 +20,7 @@ export default function Header({
   onNewAppointmentClick,
   onDataRefresh,
   activeRole,
-  setActiveRole
+  onRoleChange
 }) {
   const [cacheEvent, setCacheEvent] = useState(null);
   const [cacheStats, setCacheStats] = useState({ hits: 0, misses: 0, hit_ratio_percent: 0 });
@@ -42,10 +42,13 @@ export default function Header({
   }, []);
 
   const handleRoleToggle = (newRole) => {
-    const userName = newRole === 'CLINIC_MANAGER' ? 'Dr. Alex Rivera (Clinic Director)' : 'Nurse Sarah Jenkins';
-    setActiveUser({ role: newRole, name: userName });
-    setActiveRole(newRole);
-    onDataRefresh();
+    if (onRoleChange) {
+      onRoleChange(newRole);
+    } else {
+      const userName = newRole === 'CLINIC_MANAGER' ? 'Dr. Alex Rivera (Clinic Director)' : 'Nurse Sarah Jenkins';
+      setActiveUser({ role: newRole, name: userName });
+      onDataRefresh();
+    }
   };
 
   const handleSeedDemoData = async () => {
@@ -228,7 +231,7 @@ export default function Header({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span className="pulse-indicator" style={{ background: '#10b981' }}></span>
-          <span>Active Role: <strong style={{ color: activeRole === 'CLINIC_MANAGER' ? '#c084fc' : '#38bdf8' }}>{activeRole}</strong> ({getActiveUser().name})</span>
+          <span>Active Role: <strong style={{ color: activeRole === 'CLINIC_MANAGER' ? '#c084fc' : '#38bdf8' }}>{activeRole}</strong> ({activeRole === 'CLINIC_MANAGER' ? 'Dr. Alex Rivera (Clinic Director)' : 'Nurse Sarah Jenkins'})</span>
         </div>
       </div>
     </header>

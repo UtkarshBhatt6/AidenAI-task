@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { api, getActiveUser } from '../api';
 
-export default function ManagerAdminView({ activeRole, setActiveRole, onRoleSwitch }) {
+export default function ManagerAdminView({ activeRole, onRoleSwitch }) {
   const [cacheStats, setCacheStats] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +116,7 @@ export default function ManagerAdminView({ activeRole, setActiveRole, onRoleSwit
               Clinic Manager Administration Console
             </div>
             <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-              Authorized as: <strong>{getActiveUser().name}</strong> (Role: CLINIC_MANAGER)
+              Authorized as: <strong>{activeRole === 'CLINIC_MANAGER' ? 'Dr. Alex Rivera (Clinic Director)' : 'Nurse Sarah Jenkins'}</strong> (Role: {activeRole})
             </div>
           </div>
         </div>
