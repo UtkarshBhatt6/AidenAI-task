@@ -138,8 +138,11 @@ The default binary classification threshold of $\tau = 0.50$ assumes symmetric m
 - **Cost of a False Negative ($C_{\text{FN}} \approx 120\text{ USD}$):** Model predicts attendance, clinic takes no action, patient no-shows. The examination room sits empty, specialist physician time is wasted, and appointment billing revenue is permanently lost.
 - **Cost of a False Positive ($C_{\text{FP}} \approx 40\text{ USD}$):** Model flags high risk, clinic initiates manual coordinator telephone outreach and waitlist standby preparation, but patient attends as planned.
 
-Under **Bayesian Risk Minimization**, the optimal decision threshold $\tau^*$ that minimizes expected clinical operational loss is:
-$$\tau^* = \frac{C_{\text{FP}}}{C_{\text{FP}} + C_{\text{FN}}} = \frac{40}{40 + 120} = \mathbf{0.25}$$
+Under **Bayesian Risk Minimization**, the optimal decision threshold $\tau^{\ast}$ that minimizes expected clinical operational loss is:
+
+$$
+\tau^{\ast} = \frac{C_{\text{FP}}}{C_{\text{FP}} + C_{\text{FN}}} = \frac{40}{40 + 120} = \mathbf{0.25}
+$$
 
 #### Empirical Multi-Threshold Evaluation on Holdout Test Set (3,000 Samples):
 Evaluating candidate thresholds on the 3,000 holdout test samples (431 actual no-shows, 2,569 attendances) reveals how the precision-recall-cost dynamic operates in practice:
@@ -156,7 +159,7 @@ Evaluating candidate thresholds on the 3,000 holdout test samples (431 actual no
 
 *Analysis & Insights:*
 1. **The Cost Valley ($0.20 - 0.25$):** Under the assumed 120 USD FN and 40 USD FP costs, both $\tau = 0.20$ (39,120 USD) and $\tau = 0.25$ (39,680 USD) form an optimal cost valley, saving **~4,500 – 5,000 USD per 3,000 appointments** compared to the naive 0.50 baseline.
-2. **Theoretical vs. Empirical Agreement:** The theoretical Bayesian threshold ($\tau^* = 0.25$) falls directly into this empirical optimum. Slight differences ($\tau=0.20$ yielding a marginally lower cost on this test split) reflect finite sample variation and discrete threshold binning.
+2. **Theoretical vs. Empirical Agreement:** The theoretical Bayesian threshold ($\tau^{\ast} = 0.25$) falls directly into this empirical optimum. Slight differences ($\tau=0.20$ yielding a marginally lower cost on this test split) reflect finite sample variation and discrete threshold binning.
 3. **Recall Lift:** Lowering the cutoff into the $0.20 - 0.25$ window more than doubles Recall (from **18.8% to 45.0% - 53.4%**), ensuring clinic staff proactively identify the vast majority of impending no-shows.
 
 ### 4. Tri-Level Operational Triage Policy
@@ -339,7 +342,7 @@ backend/tests/test_ml_model.py::test_model_metadata_availability PASSED         
 - **Git Hygiene:** Run `git log --oneline` to show the clean, atomic commit history separating each architectural layer.
 - **Key Trade-offs Discussed:**
   - *In-memory Cache vs. Redis:* In-memory LRU cache was chosen for zero external operational dependencies while matching Redis's sub-millisecond retrieval. For a multi-region deployment, the cache interface can be swapped for a Redis cluster without altering API contracts.
-  - *Threshold Tuning & Tri-Level Triage:* Explain how the Bayes optimal threshold ($\tau^* = \frac{40}{40+120} = 0.25$) minimizes operational cost, doubling recall from 20.2% to 45.0% on the holdout test set, and how this cleanly maps to the clinic's tri-level intervention policy (<25% Low, 25-50% Medium, >50% High).
+  - *Threshold Tuning & Tri-Level Triage:* Explain how the Bayes optimal threshold ($\tau^{\ast} = \frac{40}{40+120} = 0.25$) minimizes operational cost, doubling recall from 20.2% to 45.0% on the holdout test set, and how this cleanly maps to the clinic's tri-level intervention policy (<25% Low, 25-50% Medium, >50% High).
 - **Conclusion:** Thank the AidenAI evaluation team.
 
 ---
@@ -351,7 +354,7 @@ In compliance with AidenAI's submission policy, the table below outlines the tra
 | Area | Candidate Ownership (Primary Engineering) | AI Assistance (Boilerplate / Speed Acceleration) |
 | :--- | :--- | :--- |
 | **System Architecture & Design** | **100% Candidate:** Defined the entire end-to-end architecture (FastAPI, SQLite WAL concurrency, LRU/TTL caching layer, and RBAC permission model). | None. |
-| **Machine Learning & Modeling** | **100% Candidate:** Selected the calibrated Gradient Boosting architecture; formulated the feature engineering pipeline (`prior_no_show_ratio`, `lead_days`, age curves, SMS impact); calibrated probabilities (Brier score 0.103); derived the Bayes optimal threshold ($\tau^* = 0.25$); and structured the tri-level intervention tiers. | Generated initial synthetic outpatient data distribution template script in `dataset.py` (subsequently re-calibrated by candidate against clinical benchmarks). |
+| **Machine Learning & Modeling** | **100% Candidate:** Selected the calibrated Gradient Boosting architecture; formulated the feature engineering pipeline (`prior_no_show_ratio`, `lead_days`, age curves, SMS impact); calibrated probabilities (Brier score 0.103); derived the Bayes optimal threshold ($\tau^{\ast} = 0.25$); and structured the tri-level intervention tiers. | Generated initial synthetic outpatient data distribution template script in `dataset.py` (subsequently re-calibrated by candidate against clinical benchmarks). |
 | **Caching Layer & Invalidation** | **100% Candidate:** Designed the thread-safe LRU/TTL caching mechanism, prefix-based write-through invalidation (`appointments:*`, `reports:*`), telemetry calculation, and manager-restricted flush endpoint. | None. |
 | **Security & RBAC** | **100% Candidate:** Defined security boundaries, role definitions (`CLINIC_STAFF` vs `CLINIC_MANAGER`), FastAPI dependency factories, and 403 Forbidden enforcement. | None. |
 | **Backend API & Persistence** | **Candidate:** Designed SQLAlchemy database models, SQLite WAL hooks, composite indexes, Pydantic v2 schemas, and endpoints. | Accelerated writing of repetitive Pydantic field definitions and initial FastAPI router signatures. |
