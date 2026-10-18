@@ -174,13 +174,15 @@ In a clinical setting, treating every flagged patient with the same flat 40 USD 
 
 Clinic staff repeatedly access today's schedule and daily summary reports. Querying the database on every page navigation introduces unnecessary latency.
 
-### Caching Architecture
-1. **Thread-Safe LRU/TTL Store (`app/core/cache.py`):**
-   - Protected by `threading.RLock()`.
-   - Max capacity of 2,048 keys with Least Recently Used (LRU) eviction when capacity is reached.
-   - Configurable per-key TTL (Appointments: 120s; Daily Reports: 180s).
+### Caching Architecture (Redis with Graceful In-Memory Fallback)
+1. **Distributed Redis Caching Layer (`app/core/cache.py`):**
+   - Connects to **Redis** (`redis://127.0.0.1:6379/0`) for sub-millisecond, distributed, process-shared caching.
+   - Dual-mode serialization: Clean JSON for standard payloads (readily inspectable in `redis-cli`) with automatic fallback to Pickle for complex objects.
+   - Native Redis TTL expiration per key (Appointments: 120s; Daily Reports: 180s).
+   - Single-flight request coalescing (`get_or_compute`) to prevent cache stampedes / thundering herds under high concurrency.
+   - **Graceful Fallback:** If Redis is unavailable or uninstalled, the system automatically falls back to an in-memory thread-safe $O(1)$ `OrderedDict` LRU cache with monotonic clock TTL without service disruption.
 2. **Write-Through Invalidation:**
-   - Whenever an appointment is created (`POST /api/v1/appointments`) or reconciled (`PATCH /api/v1/appointments/{id}/reconcile`), the backend executes:
+   - Whenever an appointment is created (`POST /api/v1/appointments`) or reconciled (`PATCH /api/v1/appointments/{id}/reconcile`), the backend executes non-blocking prefix invalidation:
      ```python
      cache.invalidate_prefix("appointments:")
      cache.invalidate_prefix("reports:")
@@ -191,7 +193,7 @@ Clinic staff repeatedly access today's schedule and daily summary reports. Query
      - `X-Cache: HIT` or `X-Cache: MISS`
      - `X-Cache-Key: <key>`
      - `X-Response-Time-ms: <elapsed>`
-   - The frontend displays a **Live Cache Telemetry HUD** showing real-time Hits, Misses, Hit Ratio %, and estimated Latency Saved.
+   - The frontend displays a **Live Cache Telemetry HUD** showing the active backend (`[REDIS]` or `[IN_MEMORY]`), real-time Hits, Misses, Hit Ratio %, and estimated Latency Saved.
 4. **Manager-Only Flush Endpoint:**
    - Restricted to `CLINIC_MANAGER` via RBAC (`POST /api/v1/cache/clear`), providing manual cache clearance for testing and cache reset demos.
 

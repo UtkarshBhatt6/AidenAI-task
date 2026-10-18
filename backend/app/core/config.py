@@ -14,6 +14,8 @@ class Settings(BaseModel):
     
     # Caching
     CACHE_DEFAULT_TTL_SECONDS: int = int(os.getenv("CACHE_DEFAULT_TTL_SECONDS", "300"))
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    CACHE_BACKEND: str = os.getenv("CACHE_BACKEND", "redis")  # "redis" or "memory"
     
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = ["*"]

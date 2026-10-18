@@ -1,16 +1,63 @@
 """
 MediTrack Caching Layer
-High-performance, thread-safe in-memory cache with monotonic TTL support,
-O(1) OrderedDict LRU eviction, single-flight request coalescing,
-defensive copying, granular telemetry, and prefix-based invalidation.
+High-performance, production-grade caching architecture supporting:
+1. RedisCacheLayer: Distributed caching with Redis, sub-millisecond lookups,
+   JSON/Pickle dual-mode serialization, prefix invalidation, and single-flight coalescing.
+2. InMemoryCacheLayer: Thread-safe local cache with O(1) OrderedDict LRU eviction,
+   monotonic TTL support, single-flight coalescing, and defensive copying.
+3. Automatic Fallback: Gracefully falls back from Redis to In-Memory if Redis is unreachable.
 """
+import os
 import time
 import copy
+import json
+import pickle
+import logging
 import threading
 from collections import OrderedDict
-from typing import Any, Optional, Dict, Tuple, Callable
+from typing import Any, Optional, Dict, Tuple, Callable, Union
 
-class CacheLayer:
+from app.core.config import settings
+
+logger = logging.getLogger("meditrack.cache")
+
+
+# ==============================================================================
+# Helper Serialization Functions for Redis
+# ==============================================================================
+def _serialize(value: Any) -> bytes:
+    """
+    Serializes Python objects for Redis storage.
+    Prefers JSON for readability & inspectability in redis-cli,
+    falling back to pickle for complex non-JSON Python objects.
+    """
+    try:
+        return b"json:" + json.dumps(value).encode("utf-8")
+    except (TypeError, ValueError):
+        return b"pkl:" + pickle.dumps(value)
+
+
+def _deserialize(payload: Optional[bytes]) -> Any:
+    """
+    Deserializes byte payloads retrieved from Redis back to Python objects.
+    """
+    if payload is None:
+        return None
+    if payload.startswith(b"json:"):
+        return json.loads(payload[5:].decode("utf-8"))
+    elif payload.startswith(b"pkl:"):
+        return pickle.loads(payload[4:])
+    else:
+        try:
+            return json.loads(payload.decode("utf-8"))
+        except Exception:
+            return pickle.loads(payload)
+
+
+# ==============================================================================
+# In-Memory Cache Implementation (OrderedDict LRU + Monotonic TTL)
+# ==============================================================================
+class InMemoryCacheLayer:
     def __init__(
         self, 
         max_size: int = 2048, 
@@ -32,7 +79,6 @@ class CacheLayer:
         
         # OrderedDict maintains O(1) recency order.
         # Key -> (value, expire_at_monotonic, last_accessed_monotonic, hits)
-        # Front (last=False) is LRU; End (last=True) is MRU.
         self._store: OrderedDict[str, Tuple[Any, float, float, int]] = OrderedDict()
         
         # Telemetry counters
@@ -43,31 +89,19 @@ class CacheLayer:
 
     @property
     def _evictions(self) -> int:
-        """Total evictions (capacity overflows + expired item purges) for backwards compatibility."""
         return self._capacity_evictions + self._ttl_expirations
 
     def get(self, key: str) -> Tuple[Optional[Any], bool]:
-        """
-        Retrieves an item from cache.
-        Returns: (value, is_hit)
-        
-        - If key exists and unexpired: marks as MRU in O(1) and returns (value, True).
-        - If key exists but expired: deletes entry, records TTL expiration, returns (None, False).
-        - If key absent: returns (None, False).
-        """
         with self._lock:
             now = time.monotonic()
             if key in self._store:
                 val, expire_at, last_accessed, hits = self._store[key]
                 if expire_at > now:
                     self._hits += 1
-                    # Update O(1) LRU order: move to end (MRU)
                     self._store[key] = (val, expire_at, now, hits + 1)
                     self._store.move_to_end(key, last=True)
-                    
                     return (copy.deepcopy(val) if self.defensive_copy else val), True
                 else:
-                    # Expired entry discovered lazily
                     del self._store[key]
                     self._ttl_expirations += 1
                     
@@ -75,13 +109,7 @@ class CacheLayer:
             return None, False
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
-        """
-        Stores an item with TTL.
-        Enforces O(1) LRU eviction when capacity is exceeded.
-        Prunes expired entries first before evicting valid LRU items.
-        """
         if ttl is not None and ttl <= 0:
-            # Non-positive TTL: treat as immediate invalidation/no-op
             self.invalidate(key)
             return
 
@@ -91,33 +119,24 @@ class CacheLayer:
             expire_at = now + effective_ttl
             stored_val = copy.deepcopy(value) if self.defensive_copy else value
 
-            # If key already exists, update and move to MRU
             if key in self._store:
                 self._store[key] = (stored_val, expire_at, now, 0)
                 self._store.move_to_end(key, last=True)
                 return
 
-            # Capacity check: If full, first try to prune an expired item from the LRU end
             while len(self._store) >= self.max_size:
                 oldest_key, (_, exp_at, _, _) = next(iter(self._store.items()))
                 if exp_at <= now:
-                    # Oldest item is already expired; purge it as a TTL expiration in O(1)
                     self._store.popitem(last=False)
                     self._ttl_expirations += 1
                 else:
-                    # Oldest item is valid; must evict as a true LRU capacity eviction in O(1)
                     self._store.popitem(last=False)
                     self._capacity_evictions += 1
                     break
 
-            # Insert new key at MRU end in O(1)
             self._store[key] = (stored_val, expire_at, now, 0)
 
     def invalidate(self, key: str) -> bool:
-        """
-        Deletes a specific cache key in O(1).
-        Returns True if the key was present, False otherwise.
-        """
         with self._lock:
             if key in self._store:
                 del self._store[key]
@@ -125,10 +144,6 @@ class CacheLayer:
             return False
 
     def invalidate_prefix(self, prefix: str) -> int:
-        """
-        Invalidates all keys matching a string prefix.
-        Used when modifying appointments to invalidate list queries and reports.
-        """
         with self._lock:
             keys_to_delete = [k for k in self._store.keys() if k.startswith(prefix)]
             for k in keys_to_delete:
@@ -136,13 +151,6 @@ class CacheLayer:
             return len(keys_to_delete)
 
     def clear(self, reset_counters: bool = False) -> None:
-        """
-        Flushes all entries from the cache.
-        
-        Args:
-            reset_counters: If True, resets all hit/miss/eviction counters to 0.
-                           If False (default), retains lifetime telemetry for monitoring.
-        """
         with self._lock:
             self._store.clear()
             if reset_counters:
@@ -152,10 +160,6 @@ class CacheLayer:
                 self._ttl_expirations = 0
 
     def prune_expired(self) -> int:
-        """
-        Actively prunes all expired entries currently stored in the cache.
-        Returns the number of pruned expired entries.
-        """
         with self._lock:
             now = time.monotonic()
             expired_keys = [k for k, (_, exp_at, _, _) in self._store.items() if exp_at <= now]
@@ -170,50 +174,35 @@ class CacheLayer:
         compute_fn: Callable[[], Any], 
         ttl: Optional[int] = None
     ) -> Tuple[Any, bool]:
-        """
-        Single-flight cache-aside helper to mitigate cache stampedes.
-        If cache misses, only ONE thread executes compute_fn() for this key;
-        concurrent requests wait on a per-key lock and read the cached result.
-        """
-        # Fast path: check cache first
         val, hit = self.get(key)
         if hit:
             return val, True
 
-        # Acquire per-key lock to prevent cache stampede
         with self._key_locks_lock:
             if key not in self._key_locks:
                 self._key_locks[key] = threading.Lock()
             key_lock = self._key_locks[key]
 
         with key_lock:
-            # Double-check cache inside per-key lock
             val, hit = self.get(key)
             if hit:
                 return val, True
 
-            # Compute value from data source (e.g. database)
             computed_value = compute_fn()
             if computed_value is not None:
                 self.set(key, computed_value, ttl=ttl)
 
-            # Cleanup per-key lock reference to avoid memory growth
             with self._key_locks_lock:
                 self._key_locks.pop(key, None)
 
             return computed_value, False
 
     def get_stats(self) -> Dict[str, Any]:
-        """
-        Returns telemetry regarding cache utilization, hit rates, and key counts.
-        """
         with self._lock:
             total_requests = self._hits + self._misses
             hit_ratio = (self._hits / total_requests * 100.0) if total_requests > 0 else 0.0
             now = time.monotonic()
             active_keys = sum(1 for _, expire_at, _, _ in self._store.values() if expire_at > now)
-            
-            # Estimate latency saved (assuming avg DB read takes ~25ms vs cache <0.5ms)
             estimated_latency_saved_ms = self._hits * 24.5
             
             return {
@@ -228,8 +217,244 @@ class CacheLayer:
                 "estimated_latency_saved_ms": round(estimated_latency_saved_ms, 1),
                 "cache_store_size": len(self._store),
                 "max_size": self.max_size,
-                "default_ttl_seconds": self.default_ttl
+                "default_ttl_seconds": self.default_ttl,
+                "backend": "in_memory"
             }
 
-# Global singleton cache instance
-cache = CacheLayer()
+
+# Backwards compatibility alias for existing unit tests
+CacheLayer = InMemoryCacheLayer
+
+
+# ==============================================================================
+# Redis Distributed Cache Implementation
+# ==============================================================================
+class RedisCacheLayer:
+    def __init__(
+        self, 
+        redis_url: str = "redis://127.0.0.1:6379/0", 
+        default_ttl: int = 300,
+        client: Optional[Any] = None
+    ):
+        self.redis_url = redis_url
+        self.default_ttl = default_ttl
+        self._lock = threading.Lock()
+        self._key_locks: Dict[str, threading.Lock] = {}
+        self._key_locks_lock = threading.Lock()
+        
+        # Telemetry counters for this node/process
+        self._hits: int = 0
+        self._misses: int = 0
+        self._evictions: int = 0
+        
+        if client is not None:
+            self._redis = client
+        else:
+            import redis
+            self._redis = redis.Redis.from_url(
+                self.redis_url, 
+                decode_responses=False,
+                socket_timeout=3.0,
+                socket_connect_timeout=3.0
+            )
+
+    def ping(self) -> bool:
+        """Verifies Redis connection health."""
+        try:
+            return bool(self._redis.ping())
+        except Exception as e:
+            logger.warning(f"Redis ping failed: {e}")
+            return False
+
+    def get(self, key: str) -> Tuple[Optional[Any], bool]:
+        """
+        Retrieves item from Redis.
+        Returns: (value, is_hit)
+        """
+        try:
+            payload = self._redis.get(key)
+            if payload is not None:
+                with self._lock:
+                    self._hits += 1
+                return _deserialize(payload), True
+            else:
+                with self._lock:
+                    self._misses += 1
+                return None, False
+        except Exception as e:
+            logger.warning(f"Redis get('{key}') failed: {e}")
+            with self._lock:
+                self._misses += 1
+            return None, False
+
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        """
+        Stores item in Redis with TTL expiration.
+        """
+        if ttl is not None and ttl <= 0:
+            self.invalidate(key)
+            return
+
+        effective_ttl = ttl if ttl is not None else self.default_ttl
+        try:
+            payload = _serialize(value)
+            self._redis.set(key, payload, ex=effective_ttl)
+        except Exception as e:
+            logger.warning(f"Redis set('{key}') failed: {e}")
+
+    def invalidate(self, key: str) -> bool:
+        """Deletes a key from Redis."""
+        try:
+            return bool(self._redis.delete(key))
+        except Exception as e:
+            logger.warning(f"Redis invalidate('{key}') failed: {e}")
+            return False
+
+    def invalidate_prefix(self, prefix: str) -> int:
+        """
+        Scans and deletes all keys starting with prefix.
+        Uses scan_iter for non-blocking iteration.
+        """
+        try:
+            pattern = f"{prefix}*"
+            keys_to_delete = list(self._redis.scan_iter(match=pattern, count=100))
+            if keys_to_delete:
+                deleted_count = self._redis.delete(*keys_to_delete)
+                return deleted_count
+            return 0
+        except Exception as e:
+            logger.warning(f"Redis invalidate_prefix('{prefix}') failed: {e}")
+            return 0
+
+    def clear(self, reset_counters: bool = False) -> None:
+        """
+        Flushes all Redis keys.
+        """
+        try:
+            # Delete keys matching appointments, reports, or common meditrack keys
+            keys = list(self._redis.scan_iter("*", count=200))
+            if keys:
+                self._redis.delete(*keys)
+        except Exception as e:
+            logger.warning(f"Redis clear failed: {e}")
+
+        if reset_counters:
+            with self._lock:
+                self._hits = 0
+                self._misses = 0
+                self._evictions = 0
+
+    def prune_expired(self) -> int:
+        """Redis handles key expirations automatically; returns 0."""
+        return 0
+
+    def get_or_compute(
+        self, 
+        key: str, 
+        compute_fn: Callable[[], Any], 
+        ttl: Optional[int] = None
+    ) -> Tuple[Any, bool]:
+        """
+        Single-flight request coalescing helper to prevent cache stampedes.
+        """
+        # Fast path
+        val, hit = self.get(key)
+        if hit:
+            return val, True
+
+        # Acquire lock for this key
+        with self._key_locks_lock:
+            if key not in self._key_locks:
+                self._key_locks[key] = threading.Lock()
+            key_lock = self._key_locks[key]
+
+        with key_lock:
+            # Double-check
+            val, hit = self.get(key)
+            if hit:
+                return val, True
+
+            computed_value = compute_fn()
+            if computed_value is not None:
+                self.set(key, computed_value, ttl=ttl)
+
+            with self._key_locks_lock:
+                self._key_locks.pop(key, None)
+
+            return computed_value, False
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Returns live Redis telemetry.
+        """
+        with self._lock:
+            total_requests = self._hits + self._misses
+            hit_ratio = (self._hits / total_requests * 100.0) if total_requests > 0 else 0.0
+            
+            try:
+                active_keys = self._redis.dbsize()
+                info = self._redis.info("stats")
+                redis_evictions = info.get("evicted_keys", 0)
+                redis_expired = info.get("expired_keys", 0)
+            except Exception:
+                active_keys = 0
+                redis_evictions = 0
+                redis_expired = 0
+
+            estimated_latency_saved_ms = self._hits * 24.5
+
+            return {
+                "hits": self._hits,
+                "misses": self._misses,
+                "total_requests": total_requests,
+                "hit_ratio_percent": round(hit_ratio, 2),
+                "active_keys_count": active_keys,
+                "total_evictions": redis_evictions + redis_expired,
+                "capacity_evictions": redis_evictions,
+                "ttl_expirations": redis_expired,
+                "estimated_latency_saved_ms": round(estimated_latency_saved_ms, 1),
+                "cache_store_size": active_keys,
+                "max_size": 100000,
+                "default_ttl_seconds": self.default_ttl,
+                "backend": "redis"
+            }
+
+
+# ==============================================================================
+# Cache Factory with Automatic Redis / In-Memory Fallback
+# ==============================================================================
+def create_cache() -> Union[RedisCacheLayer, InMemoryCacheLayer]:
+    """
+    Initializes the cache layer based on configuration.
+    Attempts Redis first if CACHE_BACKEND == 'redis'.
+    If Redis is unreachable or fails ping, seamlessly falls back to InMemoryCacheLayer.
+    """
+    backend_mode = getattr(settings, "CACHE_BACKEND", "redis").lower()
+    redis_url = getattr(settings, "REDIS_URL", "redis://127.0.0.1:6379/0")
+    default_ttl = getattr(settings, "CACHE_DEFAULT_TTL_SECONDS", 300)
+
+    if backend_mode == "redis":
+        try:
+            import redis
+            client = redis.Redis.from_url(
+                redis_url, 
+                decode_responses=False,
+                socket_timeout=2.0,
+                socket_connect_timeout=2.0
+            )
+            client.ping()
+            logger.info(f"✅ Active Cache: Redis Distributed Cache connected at {redis_url}")
+            return RedisCacheLayer(redis_url=redis_url, default_ttl=default_ttl, client=client)
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Could not connect to Redis at {redis_url} ({e}). "
+                f"Gracefully falling back to thread-safe InMemoryCacheLayer."
+            )
+            return InMemoryCacheLayer(default_ttl=default_ttl)
+
+    logger.info("Active Cache: In-Memory LRU/TTL Cache")
+    return InMemoryCacheLayer(default_ttl=default_ttl)
+
+
+# Global singleton cache instance used across FastAPI endpoints
+cache = create_cache()

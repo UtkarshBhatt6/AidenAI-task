@@ -211,6 +211,11 @@ export default function Header({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Zap size={14} color="#f59e0b" />
             <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>Cache Layer:</span>
+            {cacheStats.backend === 'redis' && (
+              <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1px 6px', fontSize: '0.68rem', fontWeight: '700' }}>
+                REDIS
+              </span>
+            )}
             {cacheEvent?.cacheStatus === 'HIT' ? (
               <span id="cache-status-badge" className="badge" style={{ background: 'var(--emerald-bg)', color: '#34d399', border: '1px solid var(--emerald-border)' }}>
                 ● CACHE HIT ({cacheEvent.serverTimeMs}ms)

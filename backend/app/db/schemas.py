@@ -126,6 +126,7 @@ class CacheStatsResponse(BaseModel):
     cache_store_size: int
     max_size: int
     default_ttl_seconds: int
+    backend: Optional[str] = "redis"
 
 class AuditLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

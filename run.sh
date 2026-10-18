@@ -22,6 +22,17 @@ fi
 lsof -ti :8000 | xargs kill -9 2>/dev/null || true
 lsof -ti :3000 | xargs kill -9 2>/dev/null || true
 
+# Start Redis server if available and not currently active
+if command -v redis-server >/dev/null 2>&1; then
+    if ! redis-cli ping >/dev/null 2>&1; then
+        echo "Starting Redis server daemon..."
+        redis-server --daemonize yes 2>/dev/null || true
+    fi
+    echo "✅ Redis server is active on 127.0.0.1:6379"
+else
+    echo "⚠️ redis-server not installed, running with in-memory caching fallback."
+fi
+
 # Start FastAPI backend
 echo "Starting FastAPI Backend on http://127.0.0.1:8000..."
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 &

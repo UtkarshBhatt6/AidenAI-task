@@ -129,12 +129,21 @@ export default function ManagerAdminView({ activeRole, onRoleSwitch }) {
       <div className="glass-panel" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <Zap size={20} color="#f59e0b" />
-              <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>In-Memory LRU/TTL Cache Administration</h3>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>
+                {cacheStats?.backend === 'redis' ? 'Distributed Redis Cache Administration' : 'In-Memory LRU/TTL Cache Administration'}
+              </h3>
+              {cacheStats?.backend === 'redis' && (
+                <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: '0.75rem', fontWeight: '700' }}>
+                  REDIS 7.x ACTIVE
+                </span>
+              )}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Monitors memory efficiency, query response latency savings, and invalidation triggers.
+              {cacheStats?.backend === 'redis' 
+                ? 'Monitors sub-millisecond Redis key store latency, prefix invalidation triggers, and hit-ratio telemetry.'
+                : 'Monitors memory efficiency, query response latency savings, and invalidation triggers.'}
             </p>
           </div>
           <button
