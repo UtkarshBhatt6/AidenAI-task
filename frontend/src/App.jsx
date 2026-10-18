@@ -7,7 +7,7 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
-import { api, getActiveUser } from './api';
+import { api, getActiveUser, setActiveUser } from './api';
 import Header from './components/Header';
 import DailyKPIBar from './components/DailyKPIBar';
 import AppointmentsTable from './components/AppointmentsTable';

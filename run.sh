@@ -18,6 +18,10 @@ if [ ! -f "backend/app/ml/artifacts/no_show_model.joblib" ]; then
     PYTHONPATH=backend .venv/bin/python3 backend/app/ml/trainer.py
 fi
 
+# Free ports 8000 and 3000 if occupied by stale processes
+lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+lsof -ti :3000 | xargs kill -9 2>/dev/null || true
+
 # Start FastAPI backend
 echo "Starting FastAPI Backend on http://127.0.0.1:8000..."
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 &
