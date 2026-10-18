@@ -73,7 +73,7 @@ Outpatient clinic chains face an average **15% to 25% appointment no-show rate**
 - **Frontend:** React 18 SPA (Vite + Vanilla CSS) with zero bloated component libraries.
 - **Backend:** FastAPI with asynchronous request handlers and Pydantic v2 data models.
 - **Database:** SQLite configured with `PRAGMA journal_mode=WAL` and `synchronous=NORMAL` for concurrent reads/writes without table lockups.
-- **Cache:** Redis caching with sub-millisecond retrieval, single-flight coalescing, and transparent fallback to an in-memory $O(1)$ LRU cache.
+- **Cache:** Redis caching with sub-millisecond retrieval, single-flight coalescing, and transparent fallback to an in-memory O(1) LRU cache.
 
 ---
 
@@ -90,25 +90,27 @@ Trained on 15,000 outpatient visit records with domain-specific features (80/20 
 
 ### 2. Primary Risk Drivers
 1. **`prior_no_show_ratio` (41.6%):** Past patient attendance history is the dominant predictor.
-2. **`lead_days` (17.8%):** Time between booking and visit; $>14$ days sharply spikes no-show likelihood.
+2. **`lead_days` (17.8%):** Time between booking and visit; >14 days sharply spikes no-show likelihood.
 3. **`age` (11.1%):** Young adults (18–28) miss more appointments; seniors (65+) attend reliably.
 4. **`sms_reminder` (10.7%):** Active 24h & 2h reminders reduce no-show odds by ~35%.
 
-### 3. Cost-Sensitive Bayesian Threshold ($\tau^{\ast} = 0.25$)
-In clinic operations, false negatives are far more costly than false positives:
-- **Cost of False Negative ($C_{\text{FN}} = \$120$):** Unfilled doctor slot, empty exam room, permanent lost revenue.
-- **Cost of False Positive ($C_{\text{FP}} = \$40$):** Proactive staff outreach / standby preparation for a patient who attends.
+### 3. Cost-Sensitive Bayesian Threshold (tau* = 0.25)
+In clinical operations, false negatives are far more costly than false positives:
+- **Cost of False Negative (C_FN = 120 USD):** Unfilled doctor slot, empty exam room, permanent lost revenue.
+- **Cost of False Positive (C_FP = 40 USD):** Proactive staff outreach and standby preparation for a patient who attends.
 
 Under **Bayesian Risk Minimization**, the optimal intervention threshold is:
-$$
-\tau^{\ast} = \frac{C_{\text{FP}}}{C_{\text{FP}} + C_{\text{FN}}} = \frac{40}{40 + 120} = \mathbf{0.25}
-$$
-Lowering the threshold from the default $0.50$ to the Bayes optimal $\mathbf{0.25}$ more than doubles test-set Recall (**18.8% $\rightarrow$ 45.0%**) and minimizes total operational loss.
+
+```
+tau* = C_FP / (C_FP + C_FN) = 40 / (40 + 120) = 0.25
+```
+
+Lowering the decision threshold from the default 0.50 baseline to the Bayes optimal **0.25** more than doubles test-set Recall (**18.8% -> 45.0%**) and minimizes total operational loss.
 
 ### 4. Tri-Level Operational Triage
-- **Low Risk ($P < 25\%$):** Standard automated SMS reminder 24h prior ($\approx \$0.05$).
-- **Medium Risk ($25\% \le P < 50\%$):** Automated two-way WhatsApp interactive confirmation prompt ($\approx \$0.10$).
-- **High Risk ($P \ge 50\%$):** Manual coordinator phone call, transport assistance, and standby buffer activation ($\approx \$40$).
+- **Low Risk (< 25%):** Automated SMS reminder 24h prior (~0.05 USD).
+- **Medium Risk (25% - 50%):** Automated two-way WhatsApp interactive confirmation prompt (~0.10 USD).
+- **High Risk (> 50%):** Dedicated coordinator phone call, transport assistance, and standby buffer activation (~40 USD).
 
 ---
 
@@ -118,7 +120,7 @@ Lowering the threshold from the default $0.50$ to the Bayes optimal $\mathbf{0.2
    - Connects to **Redis** (`redis://127.0.0.1:6379/0`) for process-shared, sub-millisecond caching.
    - Dual-mode serialization: Clean JSON for readable inspection in `redis-cli`, with automatic pickle fallback.
    - Single-flight request coalescing (`get_or_compute`) to prevent cache stampedes / thundering herds under concurrent load.
-   - **Automatic Fallback:** Gracefully degrades to a local thread-safe $O(1)$ LRU cache with monotonic TTL if Redis is unreachable.
+   - **Automatic Fallback:** Gracefully degrades to a local thread-safe O(1) LRU cache with monotonic TTL if Redis is unreachable.
 2. **Write-Through Prefix Invalidation:**
    - Any appointment creation or status reconciliation automatically invalidates `appointments:*` and `reports:*` keys to guarantee fresh data.
 3. **Live Telemetry HUD:**
@@ -192,5 +194,5 @@ backend/tests/test_redis_cache.py       6 passed
 ## AI Usage Disclosure
 
 In compliance with AidenAI evaluation standards:
-- **Candidate Ownership (100%):** Core system architecture, database modeling & SQLite WAL concurrency, ML selection & calibration, Bayesian threshold derivation ($\tau^{\ast}=0.25$), Redis caching layer with single-flight coalescing & fallback, RBAC policy design, and test suite definitions.
+- **Candidate Ownership (100%):** Core system architecture, database modeling & SQLite WAL concurrency, ML selection & calibration, Bayesian threshold derivation (tau* = 0.25), Redis caching layer with single-flight coalescing & fallback, RBAC policy design, and test suite definitions.
 - **AI Acceleration:** Used strictly for generating synthetic training distribution boilerplate in `dataset.py` and repetitive React JSX/CSS layout scaffolding.
