@@ -120,6 +120,8 @@ class CacheStatsResponse(BaseModel):
     hit_ratio_percent: float
     active_keys_count: int
     total_evictions: int
+    capacity_evictions: Optional[int] = 0
+    ttl_expirations: Optional[int] = 0
     estimated_latency_saved_ms: float
     cache_store_size: int
     max_size: int
