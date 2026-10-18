@@ -41,7 +41,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess, clinic
         const pred = await api.predictAdHoc({
           age: parseInt(formData.age) || 35,
           lead_days: parseInt(formData.lead_days) || 0,
-          day_of_week: new Date(formData.scheduled_date).getDay(),
+          day_of_week: (new Date(formData.scheduled_date).getDay() + 6) % 7,
           hour: parseInt(formData.scheduled_hour) || 10,
           prior_appointments: parseInt(formData.prior_appointments) || 0,
           prior_no_shows: parseInt(formData.prior_no_shows) || 0,
